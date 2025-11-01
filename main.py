@@ -228,7 +228,7 @@ def call_gemini(prompt: str) -> Dict[str, Any]:
             "temperature": 0.2,
             "topK": 40,
             "topP": 0.95,
-            "maxOutputTokens": 2048,
+            "maxOutputTokens": 8192,
         }
     }
     
@@ -245,6 +245,9 @@ def call_gemini(prompt: str) -> Dict[str, Any]:
             
             text_content = data["candidates"][0]["content"]["parts"][0]["text"]
             
+            with open(f"debug_raw_gemini_response_attempt_{attempt+1}.txt", "w", encoding="utf-8") as f:
+                f.write(text_content)
+            
             text_content = text_content.strip()
             if text_content.startswith("```json"):
                 text_content = text_content[7:]
@@ -256,6 +259,13 @@ def call_gemini(prompt: str) -> Dict[str, Any]:
             
             return json.loads(text_content)
             
+        except json.JSONDecodeError as e:
+            last_error = e
+            print(f"  [DEBUG] JSON parsing failed. Raw response saved to debug_raw_gemini_response_attempt_{attempt+1}.txt")
+            if attempt < MAX_RETRIES - 1:
+                wait_time = RETRY_DELAY * (attempt + 1)
+                print(f"Attempt {attempt + 1} failed: {e}. Retrying in {wait_time}s...", file=sys.stderr)
+                time.sleep(wait_time)
         except Exception as e:
             last_error = e
             if attempt < MAX_RETRIES - 1:
@@ -264,6 +274,7 @@ def call_gemini(prompt: str) -> Dict[str, Any]:
                 time.sleep(wait_time)
     
     raise RuntimeError(f"Failed after {MAX_RETRIES} attempts. Last error: {last_error}")
+
 
 
 def main():
@@ -285,6 +296,11 @@ def main():
     try:
         context_data = call_gemini(context_prompt)
         print("✓ Context analysis complete")
+        
+        with open("debug_stage1_context.json", "w", encoding="utf-8") as f:
+            json.dump(context_data, f, indent=2, ensure_ascii=False)
+        print("  [DEBUG] Stage 1 output saved to: debug_stage1_context.json")
+        
     except Exception as e:
         print(f"Error getting context: {e}")
         sys.exit(1)
@@ -294,8 +310,17 @@ def main():
     recommendation_prompt = recommendation_prompt.replace("{input_payload}", json.dumps(input_payload, ensure_ascii=False))
     recommendation_prompt = recommendation_prompt.replace("{start_month}", str(farmer.start_month))
     
+    with open("debug_stage2_prompt.txt", "w", encoding="utf-8") as f:
+        f.write(recommendation_prompt)
+    print("  [DEBUG] Stage 2 prompt saved to: debug_stage2_prompt.txt")
+    
     try:
         ai_response = call_gemini(recommendation_prompt)
+        
+        with open("debug_stage2_raw_response.txt", "w", encoding="utf-8") as f:
+            f.write(str(ai_response))
+        print("  [DEBUG] Stage 2 raw response saved to: debug_stage2_raw_response.txt")
+        
     except Exception as e:
         print(f"Error getting recommendations: {e}")
         sys.exit(1)
@@ -310,6 +335,10 @@ def main():
         else:
             recs = []
         output = {"recommendations": recs}
+
+    with open("debug_final_output.json", "w", encoding="utf-8") as f:
+        json.dump(output, f, indent=2, ensure_ascii=False)
+    print("  [DEBUG] Final output saved to: debug_final_output.json")
 
     print("\n" + "="*80)
     print("CROP RECOMMENDATIONS")
