@@ -1,5 +1,6 @@
 import json
 from fastapi import APIRouter, HTTPException
+from bson import ObjectId
 from app.models.schemas import (
     ContextAnalysisResponse,
     RecommendationRequest,
@@ -9,18 +10,30 @@ from app.models.schemas import (
 from app.services.gemini_service import call_gemini
 from app.services.database_service import save_to_mongodb
 from app.services.prompts import CONTEXT_ANALYSIS_PROMPT, RECOMMENDATION_PROMPT
-from app.core.config import DEFAULT_SENSOR_VALUES, LOCATION, START_MONTH
-from app.routers.sensors import current_sensor_data
+from app.core.config import DEFAULT_SENSOR_VALUES, START_MONTH
+from app.core.database import mongodb
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 
-@router.get("/context-analysis", response_model=ContextAnalysisResponse)
-async def analyze_context():
-    sensors = current_sensor_data
+@router.get("/{sensor_id}/context-analysis", response_model=ContextAnalysisResponse)
+async def analyze_context(sensor_id: str):
+    db = mongodb.get_database()
+    sensors_collection = db["sensor_locations"]
+    
+    try:
+        sensor_doc = await sensors_collection.find_one({"_id": ObjectId(sensor_id)})
+    except:
+        raise HTTPException(status_code=400, detail="Invalid sensor_id format")
+    
+    if not sensor_doc:
+        raise HTTPException(status_code=404, detail="Sensor location not found")
+    
+    sensors = sensor_doc.get("current_sensors", DEFAULT_SENSOR_VALUES)
+    location = sensor_doc["location"]
     
     input_payload = {
         "sensors": sensors,
-        "location": LOCATION,
+        "location": location,
         "start_month": START_MONTH
     }
     
@@ -29,11 +42,13 @@ async def analyze_context():
             "{input_payload}", 
             json.dumps(input_payload, ensure_ascii=False)
         )
-        context_prompt = context_prompt.replace("{location}", LOCATION)
+        context_prompt = context_prompt.replace("{location}", location)
         
         context_data = call_gemini(context_prompt)
         
-        document_id = await save_to_mongodb("context_analysis", {
+        document_id = await save_to_mongodb(f"sensor_{sensor_id}_context_analysis", {
+            "sensor_id": sensor_id,
+            "sensor_name": sensor_doc["name"],
             "input": input_payload,
             "output": context_data
         })
@@ -47,12 +62,24 @@ async def analyze_context():
 
 @router.post("/generate", response_model=RecommendationResponse)
 async def generate_recommendations(request: RecommendationRequest):
-    sensors = request.sensors.dict() if request.sensors else current_sensor_data
+    db = mongodb.get_database()
+    sensors_collection = db["sensor_locations"]
+    
+    try:
+        sensor_doc = await sensors_collection.find_one({"_id": ObjectId(request.sensor_id)})
+    except:
+        raise HTTPException(status_code=400, detail="Invalid sensor_id format")
+    
+    if not sensor_doc:
+        raise HTTPException(status_code=404, detail="Sensor location not found")
+    
+    sensors = sensor_doc.get("current_sensors", DEFAULT_SENSOR_VALUES)
+    location = sensor_doc["location"]
     
     input_payload = {
         "sensors": sensors,
         "farmer": request.farmer.dict(),
-        "location": LOCATION,
+        "location": location,
         "start_month": START_MONTH
     }
     
@@ -61,11 +88,13 @@ async def generate_recommendations(request: RecommendationRequest):
             "{input_payload}", 
             json.dumps(input_payload, ensure_ascii=False)
         )
-        context_prompt = context_prompt.replace("{location}", LOCATION)
+        context_prompt = context_prompt.replace("{location}", location)
         
         context_data = call_gemini(context_prompt)
         
-        await save_to_mongodb("context_analysis", {
+        await save_to_mongodb(f"sensor_{request.sensor_id}_context_analysis", {
+            "sensor_id": request.sensor_id,
+            "sensor_name": sensor_doc["name"],
             "input": input_payload,
             "output": context_data
         })
@@ -96,7 +125,9 @@ async def generate_recommendations(request: RecommendationRequest):
                 recs = []
             output = {"recommendations": recs}
         
-        document_id = await save_to_mongodb("crop_recommendations", {
+        document_id = await save_to_mongodb(f"sensor_{request.sensor_id}_crop_recommendations", {
+            "sensor_id": request.sensor_id,
+            "sensor_name": sensor_doc["name"],
             "input": input_payload,
             "context_data": context_data,
             "output": output

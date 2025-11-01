@@ -8,6 +8,20 @@ class SensorData(BaseModel):
     humidity_pct: float
     light_lux: float
 
+class SensorLocation(BaseModel):
+    name: str
+    location: str
+    description: Optional[str] = None
+
+class SensorLocationResponse(BaseModel):
+    sensor_id: str
+    name: str
+    location: str
+    description: Optional[str]
+    created_at: datetime
+    last_updated: Optional[datetime] = None
+    current_sensors: Optional[SensorData] = None
+
 class FarmerInput(BaseModel):
     crop_category: str
     budget_php: float
@@ -16,8 +30,8 @@ class FarmerInput(BaseModel):
     manpower: int
 
 class RecommendationRequest(BaseModel):
+    sensor_id: str
     farmer: FarmerInput
-    sensors: Optional[SensorData] = None
 
 class SensorUpdateResponse(BaseModel):
     message: str
