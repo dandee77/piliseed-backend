@@ -1,4 +1,5 @@
 import json
+import logging
 from fastapi import APIRouter, HTTPException
 from bson import ObjectId
 from app.models.schemas import (
@@ -10,10 +11,11 @@ from app.models.schemas import (
 from app.services.gemini_service import call_gemini
 from app.services.database_service import save_to_mongodb
 from app.services.wikipedia_service import fetch_wikipedia_thumbnail
-from app.services.prompts import CONTEXT_ANALYSIS_PROMPT, RECOMMENDATION_PROMPT
+from app.services.prompts import CONTEXT_ANALYSIS_PROMPT, RECOMMENDATION_PROMPT, CHAT_PROMPT
 from app.core.config import DEFAULT_SENSOR_VALUES, START_MONTH
 from app.core.database import mongodb
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 
 @router.get("/{sensor_id}/latest", response_model=RecommendationResponse)
@@ -402,3 +404,108 @@ async def get_recommendation_session(recommendation_id: str):
         recommendations=recommendations
     )
 
+@router.post("/{sensor_id}/chat")
+async def chat_with_ai(sensor_id: str, user_id: str, message: dict):
+    db = mongodb.get_database()
+    recommendations_collection = db["crop_recommendations"]
+    
+    try:
+        user_message = message.get("message", "")
+        if not user_message:
+            raise HTTPException(status_code=400, detail="Message is required")
+        
+        latest_recommendation = await recommendations_collection.find_one(
+            {"data.sensor_id": sensor_id, "data.user_id": user_id},
+            sort=[("timestamp", -1)]
+        )
+        
+        if not latest_recommendation:
+            return {
+                "response": None,
+                "error": "no_data",
+                "message": "No crop recommendation data found for this sensor. Please generate recommendations first.",
+                "sensor_id": sensor_id,
+                "user_id": user_id
+            }
+        
+        recommendation_data = latest_recommendation.get("data", {})
+        input_data = recommendation_data.get("input", {})
+        context_data = recommendation_data.get("context_data", {})
+        output_data = recommendation_data.get("output", {})
+        recommendations = output_data.get("recommendations", [])
+        
+        if not context_data:
+            return {
+                "response": None,
+                "error": "no_context",
+                "message": "No environmental context data found. Please generate location analysis first.",
+                "sensor_id": sensor_id,
+                "user_id": user_id
+            }
+        
+        if not recommendations:
+            return {
+                "response": None,
+                "error": "no_recommendations",
+                "message": "No crop recommendations found. Please generate recommendations first.",
+                "sensor_id": sensor_id,
+                "user_id": user_id
+            }
+        
+        chat_prompt = CHAT_PROMPT.format(
+            user_message=user_message,
+            sensor_id=sensor_id,
+            location=input_data.get('location', 'Unknown'),
+            crop_category=input_data.get('crop_category', 'N/A'),
+            budget=f"{input_data.get('budget_php', 0):,.2f}",
+            land_size=input_data.get('land_size_ha', 0),
+            manpower=input_data.get('manpower', 0),
+            waiting_tolerance=input_data.get('waiting_tolerance_days', 0),
+            context_data=json.dumps(context_data, indent=2),
+            recommendations=json.dumps(recommendations, indent=2)
+        )
+        
+        logger.info(f"Calling Gemini API for chat with sensor {sensor_id}")
+        
+        import requests
+        from app.core.config import GEMINI_API_KEY, GEMINI_MODEL
+        
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{
+                "parts": [{
+                    "text": chat_prompt
+                }]
+            }],
+            "generationConfig": {
+                "temperature": 0.7,
+                "topK": 40,
+                "topP": 0.95,
+                "maxOutputTokens": 2048,
+            }
+        }
+        
+        api_url = f"{url}?key={GEMINI_API_KEY}"
+        response = requests.post(api_url, headers=headers, json=payload, timeout=60)
+        response.raise_for_status()
+        
+        data = response.json()
+        if "candidates" not in data or not data["candidates"]:
+            raise ValueError("No response from AI")
+        
+        response_text = data["candidates"][0]["content"]["parts"][0]["text"]
+        logger.info(f"Gemini API response received successfully")
+        
+        return {
+            "response": response_text,
+            "error": None,
+            "sensor_id": sensor_id,
+            "user_id": user_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Chat error for sensor {sensor_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")

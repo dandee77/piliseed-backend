@@ -18,9 +18,7 @@ export function ExpandableNavBar({
   };
   const handleChatClick = () => {
     setActiveTab('chat');
-    if (isExpanded) {
-      navigate('/');
-    }
+    navigate('/chat');
   };
   const handleHistoryClick = () => {
     setActiveTab('history');

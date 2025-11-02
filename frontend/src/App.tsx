@@ -9,6 +9,7 @@ import { HistoryPage } from './pages/HistoryPage';
 import { HistoryDetailPage } from './pages/HistoryDetailPage';
 import { HistoryCropDetail } from './pages/HistoryCropDetail';
 import { SettingsPage } from './pages/SettingsPage';
+import { ChatPage } from './pages/ChatPage';
 import { ExpandableNavBar } from './components/ExpandableNavBar';
 import { LoginScreen } from './components/LoginScreen';
 import { UserProvider, useUser } from './contexts/UserContext';
@@ -29,6 +30,8 @@ function AnimatedRoutes() {
   useEffect(() => {
     if (location.pathname === '/') {
       setActiveTab('home');
+    } else if (location.pathname === '/chat') {
+      setActiveTab('chat');
     } else if (location.pathname.includes('/crops')) {
       setActiveTab('plant');
     } else if (location.pathname.includes('/history')) {
@@ -41,7 +44,9 @@ function AnimatedRoutes() {
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
     
-    if (tab === 'data' && isDetailPage) {
+    if (tab === 'chat') {
+      navigate('/chat');
+    } else if (tab === 'data' && isDetailPage) {
       const match = location.pathname.match(/\/greenhouse\/([^\/]+)/);
       if (match) {
         navigate(`/greenhouse/${match[1]}`);
@@ -67,6 +72,7 @@ function AnimatedRoutes() {
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/chat" element={<ChatPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/greenhouse/:id" element={<GreenhouseDetail />} />
           <Route path="/greenhouse/:id/crops" element={<CropsPage />} />
