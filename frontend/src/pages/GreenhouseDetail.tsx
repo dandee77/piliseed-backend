@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeftIcon, SproutIcon, CloudIcon, TrendingUpIcon, CalendarIcon, MapPinIcon } from 'lucide-react';
+import { ArrowLeftIcon, SproutIcon, CloudIcon, TrendingUpIcon, CalendarIcon, MapPinIcon, RefreshCwIcon } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
 interface LocationAnalysis {
@@ -53,29 +53,45 @@ export function GreenhouseDetail() {
   const navigate = useNavigate();
   const [contextAnalysis, setContextAnalysis] = useState<ContextAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchContextAnalysis = async () => {
-      if (!id) return;
-      
-      try {
+  const fetchContextAnalysis = async (refresh: boolean = false) => {
+    if (!id) return;
+    
+    try {
+      if (refresh) {
+        setRefreshing(true);
+      } else {
         setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/recommendations/${id}/context-analysis`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch context analysis');
-        }
-        const data = await response.json();
-        setContextAnalysis(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
-      } finally {
-        setLoading(false);
       }
-    };
+      setError(null);
+      
+      const url = refresh 
+        ? `${API_BASE_URL}/recommendations/${id}/context-analysis?refresh=true`
+        : `${API_BASE_URL}/recommendations/${id}/context-analysis`;
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch context analysis');
+      }
+      const data = await response.json();
+      setContextAnalysis(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
+  useEffect(() => {
     fetchContextAnalysis();
   }, [id]);
+
+  const handleRefresh = () => {
+    fetchContextAnalysis(true);
+  };
 
   if (loading) {
     return <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full min-h-screen bg-gray-50 flex items-center justify-center">
@@ -118,6 +134,14 @@ export function GreenhouseDetail() {
               <span>{contextAnalysis.location_analysis.province}, {contextAnalysis.location_analysis.region}</span>
             </div>
           </div>
+          <button 
+            onClick={handleRefresh} 
+            disabled={refreshing}
+            className={`p-2 rounded-full transition-colors ${refreshing ? 'bg-gray-100 cursor-not-allowed' : 'hover:bg-lime-100'}`}
+            title="Refresh analysis"
+          >
+            <RefreshCwIcon className={`w-6 h-6 text-gray-800 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
         </div>
       </div>
 
