@@ -34,7 +34,7 @@ interface CropRecommendation {
 }
 
 export function HistoryDetailPage() {
-  const { id, sessionId } = useParams<{ id: string; sessionId: string }>();
+  const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const [recommendations, setRecommendations] = useState<CropRecommendation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,11 +65,11 @@ export function HistoryDetailPage() {
   };
 
   const handleBack = () => {
-    navigate(`/greenhouse/${id}/history`);
+    navigate('/history');
   };
 
   const handleCropClick = (index: number) => {
-    navigate(`/greenhouse/${id}/history/${sessionId}/crops/${index}`);
+    navigate(`/history/${sessionId}/crops/${index}`);
   };
 
   if (isLoading) {

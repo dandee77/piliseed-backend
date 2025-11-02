@@ -35,11 +35,8 @@ function AnimatedRoutes() {
       if (match) {
         navigate(`/greenhouse/${match[1]}/crops`);
       }
-    } else if (tab === 'history' && isDetailPage) {
-      const match = location.pathname.match(/\/greenhouse\/([^\/]+)/);
-      if (match) {
-        navigate(`/greenhouse/${match[1]}/history`);
-      }
+    } else if (tab === 'history') {
+      navigate('/history');
     }
   };
 
@@ -50,9 +47,9 @@ function AnimatedRoutes() {
           <Route path="/greenhouse/:id" element={<GreenhouseDetail />} />
           <Route path="/greenhouse/:id/crops" element={<CropsPage />} />
           <Route path="/greenhouse/:id/crops/:cropIndex" element={<CropDetail />} />
-          <Route path="/greenhouse/:id/history" element={<HistoryPage />} />
-          <Route path="/greenhouse/:id/history/:sessionId" element={<HistoryDetailPage />} />
-          <Route path="/greenhouse/:id/history/:sessionId/crops/:cropIndex" element={<HistoryCropDetail />} />
+          <Route path="/history" element={<HistoryPage />} />
+          <Route path="/history/:sessionId" element={<HistoryDetailPage />} />
+          <Route path="/history/:sessionId/crops/:cropIndex" element={<HistoryCropDetail />} />
         </Routes>
       </AnimatePresence>
       {/* Navigation Bar - Outside page transitions */}

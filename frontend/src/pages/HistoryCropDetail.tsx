@@ -101,7 +101,7 @@ interface CropRecommendation {
 }
 
 export function HistoryCropDetail() {
-  const { id, sessionId, cropIndex } = useParams<{ id: string; sessionId: string; cropIndex: string }>();
+  const { sessionId, cropIndex } = useParams<{ sessionId: string; cropIndex: string }>();
   const navigate = useNavigate();
   const [crop, setCrop] = useState<CropRecommendation | null>(null);
   const [recommendationId, setRecommendationId] = useState<string | null>(null);
@@ -130,11 +130,11 @@ export function HistoryCropDetail() {
         setCrop(data.recommendations[index]);
         setRecommendationId(data.id);
       } else {
-        navigate(`/greenhouse/${id}/history/${sessionId}`);
+        navigate(`/history/${sessionId}`);
       }
     } catch (err) {
       console.error('Error fetching crop details:', err);
-      navigate(`/greenhouse/${id}/history/${sessionId}`);
+      navigate(`/history/${sessionId}`);
     } finally {
       setIsLoading(false);
     }
@@ -165,7 +165,7 @@ export function HistoryCropDetail() {
   };
 
   const handleBack = () => {
-    navigate(`/greenhouse/${id}/history/${sessionId}`);
+    navigate(`/history/${sessionId}`);
   };
 
   const getScoreColor = (score: number) => {

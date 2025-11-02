@@ -321,6 +321,47 @@ async def get_recommendation_history(sensor_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch history: {str(e)}")
 
+@router.get("/history/all")
+async def get_all_recommendation_history():
+    db = mongodb.get_database()
+    recommendations_collection = db["crop_recommendations"]
+    sensors_collection = db["sensor_locations"]
+    
+    try:
+        history_cursor = recommendations_collection.find().sort("timestamp", -1)
+        
+        history = []
+        async for doc in history_cursor:
+            sensor_id = doc.get("data", {}).get("sensor_id")
+            output = doc.get("data", {}).get("output", {})
+            recommendations = output.get("recommendations", [])
+            
+            sensor_doc = None
+            if sensor_id:
+                try:
+                    sensor_doc = await sensors_collection.find_one({"_id": ObjectId(sensor_id)})
+                except:
+                    pass
+            
+            location = sensor_doc.get("location", "Unknown") if sensor_doc else "Unknown"
+            
+            planted_count = sum(1 for rec in recommendations if rec.get("planted", False))
+            
+            history.append({
+                "id": str(doc["_id"]),
+                "timestamp": doc["timestamp"],
+                "sensor_id": sensor_id,
+                "sensor_name": doc.get("data", {}).get("sensor_name", "Unknown"),
+                "location": location,
+                "total_crops": len(recommendations),
+                "planted_count": planted_count,
+                "farmer_input": doc.get("data", {}).get("input", {}).get("farmer", {})
+            })
+        
+        return {"history": history}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch history: {str(e)}")
+
 @router.get("/session/{recommendation_id}", response_model=RecommendationResponse)
 async def get_recommendation_session(recommendation_id: str):
     db = mongodb.get_database()

@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeftIcon, ClockIcon, SproutIcon, CheckCircleIcon } from 'lucide-react';
+import { ArrowLeftIcon, ClockIcon, SproutIcon, CheckCircleIcon, MapPinIcon } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
 interface HistorySession {
   id: string;
   timestamp: string;
+  sensor_id: string;
   sensor_name: string;
+  location: string;
   total_crops: number;
   planted_count: number;
   farmer_input: {
@@ -20,7 +22,6 @@ interface HistorySession {
 }
 
 export function HistoryPage() {
-  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [history, setHistory] = useState<HistorySession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -28,14 +29,12 @@ export function HistoryPage() {
 
   useEffect(() => {
     fetchHistory();
-  }, [id]);
+  }, []);
 
   const fetchHistory = async () => {
-    if (!id) return;
-
     try {
       setIsLoading(true);
-      const response = await fetch(`${API_BASE_URL}/recommendations/${id}/history`);
+      const response = await fetch(`${API_BASE_URL}/recommendations/history/all`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch history');
@@ -51,11 +50,11 @@ export function HistoryPage() {
   };
 
   const handleBack = () => {
-    navigate(`/greenhouse/${id}`);
+    navigate('/');
   };
 
   const handleSessionClick = (sessionId: string) => {
-    navigate(`/greenhouse/${id}/history/${sessionId}`);
+    navigate(`/history/${sessionId}`);
   };
 
   const formatDate = (timestamp: string) => {
@@ -157,7 +156,11 @@ export function HistoryPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">{session.sensor_name}</h3>
-                    <p className="text-sm text-gray-500">{formatDate(session.timestamp)}</p>
+                    <div className="flex items-center gap-1 text-sm text-gray-500">
+                      <MapPinIcon className="w-3 h-3" />
+                      <span>{session.location}</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">{formatDate(session.timestamp)}</p>
                   </div>
                 </div>
                 {session.planted_count > 0 && (
