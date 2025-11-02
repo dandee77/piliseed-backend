@@ -4,40 +4,50 @@ You are an agricultural data analyst specializing in Philippine farming conditio
 Input data:
 {input_payload}
 
-Provide a comprehensive analysis in JSON format with these exact keys:
+Provide a comprehensive analysis in JSON format with these exact keys.
+
+IMPORTANT: All string values must be CONCISE without explanations in parentheses or additional details. Only provide the direct answer.
 
 {{
   "location_analysis": {{
-    "province": "string",
-    "region": "string",
-    "climate_type": "string (Type I-IV Philippine classification)",
-    "current_season": "string (Dry/Wet/Transition)",
+    "province": "string (province name only)",
+    "region": "string (region name only)",
+    "climate_type": "string (ONLY 'Type I', 'Type II', 'Type III', or 'Type IV' - NO explanations)",
+    "current_season": "string (ONLY 'Dry', 'Wet', or 'Transition' - NO explanations)",
     "season_end_month": "integer (1-12)"
   }},
   "weather_forecast": {{
     "current_month_rainfall_mm": "number (estimated average)",
     "next_3months_rainfall_mm": "number (estimated average)",
-    "temperature_range_c": "string (e.g., 24-32)",
-    "typhoon_risk": "string (Low/Moderate/High)",
-    "el_nino_la_nina": "string (Normal/El Niño/La Niña)"
+    "temperature_range_c": "string (format: 24-32 - NO explanations)",
+    "typhoon_risk": "string (ONLY 'Low', 'Moderate', or 'High' - NO explanations)",
+    "el_nino_la_nina": "string (ONLY 'Normal', 'El Niño', or 'La Niña' - NO explanations)"
   }},
   "market_conditions": {{
-    "high_demand_crops": ["array of crop names currently in high demand"],
-    "price_trends": "string (Rising/Stable/Declining for common crops)",
-    "export_opportunities": ["array of crops with export potential"],
-    "local_market_saturation": ["array of oversupplied crops to avoid"]
+    "high_demand_crops": ["array of crop names only - NO explanations"],
+    "price_trends": "string (brief description)",
+    "export_opportunities": ["array of crop names only - NO explanations"],
+    "local_market_saturation": ["array of crop names only - NO explanations"]
   }},
   "agricultural_calendar": {{
     "optimal_planting_window": "string (e.g., November-January)",
-    "harvest_season_conflict": "string (describe if harvest timing conflicts with typhoon season)",
-    "recommended_crop_cycles": ["Fast (30-60d)", "Medium (60-120d)", "Long (120d+)"]
+    "harvest_season_conflict": "string (brief description)",
+    "recommended_crop_cycles": ["array like 'Fast (30-60d)', 'Medium (60-120d)', 'Long (120d+)' - NO additional explanations"]
   }},
   "risk_factors": {{
-    "pest_disease_season": ["array of common pests/diseases active in this period"],
-    "water_availability": "string (Abundant/Moderate/Scarce)",
-    "soil_degradation_risk": "string (Low/Moderate/High)"
+    "pest_disease_season": ["array of pest/disease names only - NO explanations"],
+    "water_availability": "string (ONLY 'Abundant', 'Moderate', or 'Scarce' - NO explanations)",
+    "soil_degradation_risk": "string (ONLY 'Low', 'Moderate', or 'High' - NO explanations)"
   }}
 }}
+
+CRITICAL RULES:
+1. For fields marked "NO explanations", provide ONLY the exact value without any text in parentheses or additional context
+2. climate_type must be exactly "Type I", "Type II", "Type III", or "Type IV" with nothing else
+3. water_availability must be exactly "Abundant", "Moderate", or "Scarce" with nothing else
+4. soil_degradation_risk must be exactly "Low", "Moderate", or "High" with nothing else
+5. typhoon_risk must be exactly "Low", "Moderate", or "High" with nothing else
+6. current_season must be exactly "Dry", "Wet", or "Transition" with nothing else
 
 Base your analysis on typical Philippine agricultural patterns, regional climate data, and current month context. Be realistic and specific to {location}.
 """
