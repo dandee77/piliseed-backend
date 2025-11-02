@@ -99,7 +99,7 @@ export function GreenhouseDetail() {
     return <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-lime-400 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading context analysis...</p>
+          <p className="text-gray-600">Loading location analysis...</p>
         </div>
       </motion.div>;
   }
@@ -130,7 +130,7 @@ export function GreenhouseDetail() {
             <ArrowLeftIcon className="w-6 h-6 text-gray-800" />
           </button>
           <div className="flex-1">
-            <h2 className="text-xl font-bold text-gray-900">Context Analysis</h2>
+            <h2 className="text-xl font-bold text-gray-900">Location Analysis</h2>
             <div className="flex items-center gap-1 text-sm text-gray-600 mt-1">
               <MapPinIcon className="w-4 h-4" />
               <span>{contextAnalysis.location_analysis.province}, {contextAnalysis.location_analysis.region}</span>
