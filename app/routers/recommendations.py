@@ -16,6 +16,35 @@ from app.core.database import mongodb
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 
+@router.get("/{sensor_id}/latest", response_model=RecommendationResponse)
+async def get_latest_recommendations(sensor_id: str):
+    db = mongodb.get_database()
+    recommendations_collection = db["crop_recommendations"]
+    
+    try:
+        latest_recommendation = await recommendations_collection.find_one(
+            {"data.sensor_id": sensor_id},
+            sort=[("timestamp", -1)]
+        )
+        
+        if not latest_recommendation or "data" not in latest_recommendation:
+            raise HTTPException(status_code=404, detail="No recommendations found for this sensor")
+        
+        output = latest_recommendation["data"].get("output", {})
+        recommendations = output.get("recommendations", [])
+        
+        if not recommendations:
+            raise HTTPException(status_code=404, detail="No recommendations found for this sensor")
+        
+        return RecommendationResponse(
+            id=str(latest_recommendation["_id"]),
+            recommendations=recommendations
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch recommendations: {str(e)}")
+
 @router.get("/{sensor_id}/context-analysis", response_model=ContextAnalysisResponse)
 async def analyze_context(sensor_id: str, refresh: bool = False):
     db = mongodb.get_database()
@@ -155,14 +184,9 @@ async def generate_recommendations(request: RecommendationRequest):
         
         for recommendation in output.get("recommendations", []):
             searchable_name = recommendation.get("searchable_name")
-            print(f"Processing crop: {recommendation.get('crop')}, searchable_name: {searchable_name}")
             if searchable_name:
                 image_url = await fetch_wikipedia_thumbnail(searchable_name)
-                print(f"Fetched image_url: {image_url}")
                 recommendation["image_url"] = image_url
-            else:
-                print(f"No searchable_name found for crop: {recommendation.get('crop')}")
-                recommendation["image_url"] = None
         
         document_id = await save_to_mongodb("crop_recommendations", {
             "sensor_id": request.sensor_id,
