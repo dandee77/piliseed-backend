@@ -148,7 +148,7 @@ export function GreenhouseDetail() {
       </div>
 
       <div className="flex-1 px-5 py-6 space-y-5">
-        <div className="bg-gradient-to-br from-lime-400 to-green-500 rounded-3xl p-6 text-white shadow-lg">
+        <div className="bg-green-600 rounded-3xl p-6 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-3">
             <CalendarIcon className="w-5 h-5" />
             <span className="text-sm font-medium opacity-90">Climate: {contextAnalysis.location_analysis.climate_type}</span>

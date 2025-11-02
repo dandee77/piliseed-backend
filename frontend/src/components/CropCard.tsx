@@ -34,7 +34,7 @@ export function CropCard({ crop, category, overallScore, imageUrl, planted, onCl
       onClick={onClick}
       className="bg-white rounded-2xl shadow-lg overflow-hidden cursor-pointer"
     >
-      <div className="relative h-40 bg-gradient-to-br from-green-50 to-lime-50">
+      <div className="relative h-40 bg-green-50">
         {imageUrl ? (
           <img 
             src={imageUrl} 

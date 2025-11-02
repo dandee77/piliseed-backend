@@ -146,7 +146,7 @@ export function FarmerForm({ onSubmit, isLoading }: FarmerFormProps) {
         disabled={isLoading}
         whileHover={{ scale: isLoading ? 1 : 1.02 }}
         whileTap={{ scale: isLoading ? 1 : 0.98 }}
-        className="w-full bg-gradient-to-r from-lime-500 to-green-600 text-white font-semibold py-4 rounded-xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full bg-green-600 text-white font-semibold py-4 rounded-xl shadow-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isLoading ? (
           <span className="flex items-center justify-center gap-2">

@@ -138,18 +138,18 @@ export function CropsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 via-lime-50 to-yellow-50 flex items-center justify-center">
+      <div className="min-h-screen bg-green-50 flex items-center justify-center">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full"
+          className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full"
         />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-lime-50 to-yellow-50 pb-32">
+    <div className="min-h-screen bg-green-50 pb-32">
       <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md shadow-sm">
         <div className="px-5 py-4 flex items-center gap-4">
           <motion.button

@@ -193,11 +193,11 @@ export function HistoryCropDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 via-lime-50 to-yellow-50 flex items-center justify-center">
+      <div className="min-h-screen bg-green-50 flex items-center justify-center">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full"
+          className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full"
         />
       </div>
     );
@@ -208,7 +208,7 @@ export function HistoryCropDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-lime-50 to-yellow-50 pb-32">
+    <div className="min-h-screen bg-green-50 pb-32">
       <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md shadow-sm">
         <div className="px-5 py-4 flex items-center gap-4">
           <motion.button
@@ -239,11 +239,11 @@ export function HistoryCropDetail() {
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-green-400 to-lime-500 flex items-center justify-center">
+            <div className="w-full h-full bg-green-600 flex items-center justify-center">
               <SproutIcon className="w-24 h-24 text-white" />
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+          <div className="absolute inset-0 bg-black/40" />
           <div className="absolute bottom-4 left-4 right-4">
             <div className="flex items-center justify-between">
               <div>

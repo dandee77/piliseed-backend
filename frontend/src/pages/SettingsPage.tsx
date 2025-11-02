@@ -53,8 +53,8 @@ export function SettingsPage() {
         </div>
 
         {/* Profile Section */}
-        <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-green-50 to-lime-50 rounded-2xl">
-          <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-lime-500 rounded-full flex items-center justify-center">
+        <div className="flex items-center gap-4 p-4 bg-green-50 rounded-2xl border border-green-100">
+          <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center">
             <UserIcon className="w-8 h-8 text-white" />
           </div>
           <div className="flex-1">
@@ -153,7 +153,7 @@ export function SettingsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="bg-gradient-to-br from-green-50 to-lime-50 rounded-2xl p-6 border border-green-100"
+          className="bg-green-50 rounded-2xl p-6 border border-green-100"
         >
           <h3 className="text-lg font-bold text-gray-900 mb-3">About This Project</h3>
           <div className="space-y-3 text-sm text-gray-700">

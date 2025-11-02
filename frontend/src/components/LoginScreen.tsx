@@ -55,7 +55,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-lime-50 to-yellow-50 flex items-center justify-center p-5">
+    <div className="min-h-screen bg-green-50 flex items-center justify-center p-5">
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -68,7 +68,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             initial={{ y: -20 }}
             animate={{ y: 0 }}
             transition={{ delay: 0.1, type: 'spring', stiffness: 200 }}
-            className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-green-400 to-lime-500 rounded-3xl mb-4 shadow-lg"
+            className="inline-flex items-center justify-center w-20 h-20 bg-green-600 rounded-3xl mb-4 shadow-lg"
           >
             <SproutIcon className="w-10 h-10 text-white" />
           </motion.div>
@@ -149,7 +149,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
               whileTap={{ scale: 0.98 }}
               type="submit"
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-green-500 to-lime-500 text-white font-semibold py-4 rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-green-600 text-white font-semibold py-4 rounded-xl shadow-lg hover:bg-green-700 hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <div className="flex items-center justify-center gap-2">

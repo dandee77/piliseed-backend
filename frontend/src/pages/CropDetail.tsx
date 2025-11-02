@@ -195,11 +195,11 @@ export function CropDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 via-lime-50 to-yellow-50 flex items-center justify-center">
+      <div className="min-h-screen bg-green-50 flex items-center justify-center">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full"
+          className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full"
         />
       </div>
     );
@@ -210,7 +210,7 @@ export function CropDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-lime-50 to-yellow-50 pb-32">
+    <div className="min-h-screen bg-green-50 pb-32">
       <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md shadow-sm">
         <div className="px-5 py-4 flex items-center gap-4">
           <motion.button
@@ -241,11 +241,11 @@ export function CropDetail() {
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-green-400 to-lime-500 flex items-center justify-center">
+            <div className="w-full h-full bg-green-600 flex items-center justify-center">
               <SproutIcon className="w-24 h-24 text-white" />
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+          <div className="absolute inset-0 bg-black/40" />
           <div className="absolute bottom-4 left-4 right-4">
             <div className="flex items-center justify-between">
               <div>
@@ -284,7 +284,7 @@ export function CropDetail() {
             <ScoreItem label="Labor" value={crop.scores.labor_score} />
             <ScoreItem label="Risk" value={crop.scores.risk_score} />
             <ScoreItem label="Market" value={crop.scores.market_score} />
-            <div className="bg-gradient-to-br from-lime-50 to-green-50 p-3 rounded-xl">
+            <div className="bg-green-50 p-3 rounded-xl border border-green-100">
               <div className="text-xs text-gray-600 mb-1">Confidence</div>
               <div className="text-lg font-bold text-green-700">{crop.scores.confidence_pct}%</div>
             </div>
@@ -427,7 +427,7 @@ export function CropDetail() {
               </div>
             </div>
 
-            <div className="bg-gradient-to-r from-lime-50 to-green-50 p-4 rounded-xl">
+            <div className="bg-green-50 p-4 rounded-xl border border-green-100">
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div>
                   <div className="text-xs text-gray-600 mb-1">Profit Margin</div>
