@@ -212,7 +212,8 @@ CONTEXTUAL DATA:
 SENSOR READINGS:
 {input_payload}
 
-Generate detailed crop recommendations as a JSON object with key "recommendations" containing an array of EXACTLY 8 crop objects.
+Generate detailed crop recommendations as a JSON object with key "recommendations" containing an array of randomly 8-12 crop objects. 
+Please ensure diversity in crop types (Vegetables, Fruits, Cereals, Legumes, Cash crops, Fodder, Herbs, Ornamentals).
 
 Each recommendation must include ALL these fields:
 
