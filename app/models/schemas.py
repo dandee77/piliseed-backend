@@ -2,17 +2,6 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-# User Models
-class UserCreate(BaseModel):
-    first_name: str
-    last_name: str
-
-class UserResponse(BaseModel):
-    user_id: str
-    first_name: str
-    last_name: str
-    created_at: datetime
-
 class SensorData(BaseModel):
     soil_moisture_pct: float
     temperature_c: float
@@ -44,7 +33,6 @@ class FarmerInput(BaseModel):
 
 class RecommendationRequest(BaseModel):
     sensor_id: str
-    user_id: str
     farmer: FarmerInput
 
 class SensorUpdateResponse(BaseModel):
@@ -53,7 +41,6 @@ class SensorUpdateResponse(BaseModel):
 
 class ContextAnalysisResponse(BaseModel):
     id: str
-    user_id: str
     sensor_id: str
     location_analysis: Dict[str, Any]
     weather_forecast: Dict[str, Any]
@@ -141,6 +128,7 @@ class CropRecommendation(BaseModel):
     scientific_name: str
     category: str
     planted: bool = False
+    is_top_3: bool = False
     scores: Score
     growth_requirements: GrowthRequirements
     tolerances: Tolerances
@@ -153,6 +141,18 @@ class CropRecommendation(BaseModel):
 
 class RecommendationResponse(BaseModel):
     id: str
-    user_id: str
     sensor_id: str
     recommendations: List[CropRecommendation]
+
+class HardwareSensorData(BaseModel):
+    soil_moisture_pct: float
+    temperature_c: float
+    humidity_pct: float
+    light_lux: float
+
+class AutoRecommendationResponse(BaseModel):
+    success: bool
+    sensor_id: str
+    top_3_crops: List[str]
+    total_crops_generated: int
+    message: str

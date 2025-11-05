@@ -202,3 +202,119 @@ Instructions:
 11. For emphasis, use CAPITAL LETTERS instead of bold
 
 Provide a helpful response to the user's question in plain text without any markdown formatting."""
+
+HARDWARE_RECOMMENDATION_PROMPT = r"""
+You are an expert agronomist AI system providing automated crop recommendations based solely on sensor data from an IoT greenhouse system.
+
+CONTEXTUAL DATA:
+{context_data}
+
+SENSOR READINGS:
+{input_payload}
+
+Generate detailed crop recommendations as a JSON object with key "recommendations" containing an array of EXACTLY 8 crop objects.
+
+Each recommendation must include ALL these fields:
+
+{{
+  "crop": "string (specific variety if applicable, e.g., 'Ampalaya - Jade 20')",
+  "searchable_name": "string (common English name for Wikipedia search, e.g., 'bitter gourd' for Ampalaya, 'mustard greens' for Mustasa, 'eggplant' for Talong, 'lettuce' for Lettuce)",
+  "scientific_name": "string",
+  "category": "string (Vegetables/Fruits/Cereals/Legumes/Cash/Fodder/Herbs/Ornamentals)",
+  
+  "scores": {{
+    "overall_score": "number 0.0-1.0 (weighted composite)",
+    "confidence_pct": "integer 0-100",
+    "env_score": "number 0.0-1.0",
+    "econ_score": "number 0.0-1.0", 
+    "time_fit_score": "number 0.0-1.0",
+    "season_score": "number 0.0-1.0",
+    "labor_score": "number 0.0-1.0",
+    "risk_score": "number 0.0-1.0 (higher is better, means lower risk)",
+    "market_score": "number 0.0-1.0"
+  }},
+  
+  "growth_requirements": {{
+    "crop_cycle_days": "integer",
+    "water_requirement": "string (Low/Moderate/High, with liters/plant/day if applicable)",
+    "sunlight_hours_daily": "integer",
+    "optimal_temp_range_c": "string (e.g., 20-30)",
+    "soil_ph_range": "string (e.g., 5.5-6.5)",
+    "soil_type_preferred": "string"
+  }},
+  
+  "tolerances": {{
+    "drought_tolerance": "string (Low/Moderate/High)",
+    "flood_tolerance": "string (Low/Moderate/High)",
+    "salinity_tolerance": "string (Low/Moderate/High)",
+    "frost_tolerance": "string (Low/Moderate/High)",
+    "shade_tolerance": "string (Low/Moderate/High)",
+    "pest_disease_resistance": "string (Low/Moderate/High)"
+  }},
+  
+  "management": {{
+    "management_intensity": "string (Low/Moderate/High)",
+    "labor_hours_per_ha_per_week": "number",
+    "organic_suitable": "boolean",
+    "mechanization_possible": "boolean",
+    "requires_irrigation": "boolean",
+    "requires_trellising": "boolean"
+  }},
+  
+  "economics": {{
+    "estimated_cost_php": "number (estimated for 1 hectare)",
+    "cost_breakdown": {{
+      "seeds_php": "number",
+      "fertilizer_php": "number",
+      "pesticides_php": "number",
+      "labor_php": "number",
+      "irrigation_php": "number",
+      "others_php": "number"
+    }},
+    "estimated_yield_kg_per_ha": "number",
+    "estimated_revenue_php": "number (estimated for 1 hectare)",
+    "profit_margin_pct": "number",
+    "roi_pct": "number",
+    "break_even_days": "integer"
+  }},
+  
+  "market_strategy": {{
+    "best_selling_locations": ["array of specific markets/cities"],
+    "current_market_price_php_per_kg": "number",
+    "projected_harvest_price_php_per_kg": "number",
+    "price_volatility": "string (Low/Moderate/High)",
+    "demand_level": "string (Low/Moderate/High/Very High)",
+    "export_potential": "boolean",
+    "buyer_types": ["array: e.g., Wet market, Supermarket, Restaurant, Processor, Exporter"]
+  }},
+  
+  "planting_schedule": {{
+    "recommended_planting_date": "string (e.g., November 15-30, 2025)",
+    "expected_harvest_date": "string (e.g., February 15-28, 2026)",
+    "succession_planting_possible": "boolean",
+    "intercropping_compatible_with": ["array of crop names"]
+  }},
+  
+  "risk_assessment": {{
+    "weather_risks": ["array of specific risks based on season"],
+    "pest_disease_risks": ["array of likely threats in the planting period"],
+    "market_risks": ["array of economic risks"],
+    "mitigation_strategies": ["array of 2-3 actionable recommendations"]
+  }},
+  
+  "reasoning": "string (2-3 sentences explaining why this crop is recommended based on the sensor data)"
+}}
+
+CRITICAL REQUIREMENTS:
+1. Return EXACTLY 8 recommendations, ranked by overall_score descending
+2. Base recommendations SOLELY on sensor readings (soil moisture, temperature, humidity, light)
+3. Use the contextual weather and market data to influence season_score and market_score
+4. Confidence_pct should reflect sensor data quality (basic 4 sensors = moderate confidence 60-75%)
+5. Risk_score should account for typhoon season, pest outbreaks, and market saturation from context
+6. All financial figures must be realistic for Philippines 2025 and calculated for 1 hectare
+7. Consider the current month ({start_month}) and ensure harvest doesn't coincide with worst weather
+8. Focus on crops that match current sensor conditions (temperature, moisture, light levels)
+9. Prioritize crops suitable for the detected climate type and season
+
+Output ONLY valid JSON. No markdown, no explanations outside the JSON structure.
+"""

@@ -6,12 +6,14 @@ from app.models.schemas import (
     ContextAnalysisResponse,
     RecommendationRequest,
     RecommendationResponse,
-    SensorData
+    SensorData,
+    HardwareSensorData,
+    AutoRecommendationResponse
 )
 from app.services.gemini_service import call_gemini
 from app.services.database_service import save_to_mongodb
 from app.services.wikipedia_service import fetch_wikipedia_thumbnail
-from app.services.prompts import CONTEXT_ANALYSIS_PROMPT, RECOMMENDATION_PROMPT, CHAT_PROMPT
+from app.services.prompts import CONTEXT_ANALYSIS_PROMPT, RECOMMENDATION_PROMPT, CHAT_PROMPT, HARDWARE_RECOMMENDATION_PROMPT
 from app.core.config import DEFAULT_SENSOR_VALUES, START_MONTH
 from app.core.database import mongodb
 
@@ -19,13 +21,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 
 @router.get("/{sensor_id}/latest", response_model=RecommendationResponse)
-async def get_latest_recommendations(sensor_id: str, user_id: str):
+async def get_latest_recommendations(sensor_id: str):
     db = mongodb.get_database()
     recommendations_collection = db["crop_recommendations"]
     
     try:
         latest_recommendation = await recommendations_collection.find_one(
-            {"data.sensor_id": sensor_id, "data.user_id": user_id},
+            {"data.sensor_id": sensor_id},
             sort=[("timestamp", -1)]
         )
         
@@ -40,7 +42,6 @@ async def get_latest_recommendations(sensor_id: str, user_id: str):
         
         return RecommendationResponse(
             id=str(latest_recommendation["_id"]),
-            user_id=user_id,
             sensor_id=sensor_id,
             recommendations=recommendations
         )
@@ -50,7 +51,7 @@ async def get_latest_recommendations(sensor_id: str, user_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to fetch recommendations: {str(e)}")
 
 @router.get("/{sensor_id}/context-analysis", response_model=ContextAnalysisResponse)
-async def analyze_context(sensor_id: str, user_id: str, refresh: bool = False):
+async def analyze_context(sensor_id: str, refresh: bool = False):
     db = mongodb.get_database()
     sensors_collection = db["sensor_locations"]
     context_collection = db["location_analysis"]
@@ -65,7 +66,7 @@ async def analyze_context(sensor_id: str, user_id: str, refresh: bool = False):
     
     if not refresh:
         existing_context = await context_collection.find_one(
-            {"data.sensor_id": sensor_id, "data.user_id": user_id},
+            {"data.sensor_id": sensor_id},
             sort=[("timestamp", -1)]
         )
         
@@ -74,7 +75,6 @@ async def analyze_context(sensor_id: str, user_id: str, refresh: bool = False):
             if context_data:
                 return ContextAnalysisResponse(
                     id=str(existing_context["_id"]),
-                    user_id=user_id,
                     sensor_id=sensor_id,
                     **context_data
                 )
@@ -98,11 +98,10 @@ async def analyze_context(sensor_id: str, user_id: str, refresh: bool = False):
         context_data = call_gemini(context_prompt)
         
         if refresh:
-            await context_collection.delete_many({"data.sensor_id": sensor_id, "data.user_id": user_id})
+            await context_collection.delete_many({"data.sensor_id": sensor_id})
         
         document_id = await save_to_mongodb("location_analysis", {
             "sensor_id": sensor_id,
-            "user_id": user_id,
             "sensor_name": sensor_doc["name"],
             "input": input_payload,
             "output": context_data
@@ -110,7 +109,6 @@ async def analyze_context(sensor_id: str, user_id: str, refresh: bool = False):
         
         return ContextAnalysisResponse(
             id=document_id,
-            user_id=user_id,
             sensor_id=sensor_id,
             **context_data
         )
@@ -143,7 +141,7 @@ async def generate_recommendations(request: RecommendationRequest):
     
     try:
         existing_context = await context_collection.find_one(
-            {"data.sensor_id": request.sensor_id, "data.user_id": request.user_id},
+            {"data.sensor_id": request.sensor_id},
             sort=[("timestamp", -1)]
         )
         
@@ -160,7 +158,6 @@ async def generate_recommendations(request: RecommendationRequest):
             
             await save_to_mongodb("location_analysis", {
                 "sensor_id": request.sensor_id,
-                "user_id": request.user_id,
                 "sensor_name": sensor_doc["name"],
                 "input": input_payload,
                 "output": context_data
@@ -200,7 +197,6 @@ async def generate_recommendations(request: RecommendationRequest):
         
         document_id = await save_to_mongodb("crop_recommendations", {
             "sensor_id": request.sensor_id,
-            "user_id": request.user_id,
             "sensor_name": sensor_doc["name"],
             "input": input_payload,
             "context_data": context_data,
@@ -209,7 +205,6 @@ async def generate_recommendations(request: RecommendationRequest):
         
         return RecommendationResponse(
             id=document_id,
-            user_id=request.user_id,
             sensor_id=request.sensor_id,
             recommendations=output["recommendations"]
         )
@@ -335,13 +330,13 @@ async def get_recommendation_history(sensor_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to fetch history: {str(e)}")
 
 @router.get("/history/all")
-async def get_all_recommendation_history(user_id: str):
+async def get_all_recommendation_history():
     db = mongodb.get_database()
     recommendations_collection = db["crop_recommendations"]
     sensors_collection = db["sensor_locations"]
     
     try:
-        history_cursor = recommendations_collection.find({"data.user_id": user_id}).sort("timestamp", -1)
+        history_cursor = recommendations_collection.find({}).sort("timestamp", -1)
         
         history = []
         async for doc in history_cursor:
@@ -394,18 +389,16 @@ async def get_recommendation_session(recommendation_id: str):
     if not recommendations:
         raise HTTPException(status_code=404, detail="No recommendations in this session")
     
-    user_id = recommendation_doc["data"].get("user_id", "")
     sensor_id = recommendation_doc["data"].get("sensor_id", "")
     
     return RecommendationResponse(
         id=str(recommendation_doc["_id"]),
-        user_id=user_id,
         sensor_id=sensor_id,
         recommendations=recommendations
     )
 
 @router.post("/{sensor_id}/chat")
-async def chat_with_ai(sensor_id: str, user_id: str, message: dict):
+async def chat_with_ai(sensor_id: str, message: dict):
     db = mongodb.get_database()
     recommendations_collection = db["crop_recommendations"]
     
@@ -415,7 +408,7 @@ async def chat_with_ai(sensor_id: str, user_id: str, message: dict):
             raise HTTPException(status_code=400, detail="Message is required")
         
         latest_recommendation = await recommendations_collection.find_one(
-            {"data.sensor_id": sensor_id, "data.user_id": user_id},
+            {"data.sensor_id": sensor_id},
             sort=[("timestamp", -1)]
         )
         
@@ -424,8 +417,7 @@ async def chat_with_ai(sensor_id: str, user_id: str, message: dict):
                 "response": None,
                 "error": "no_data",
                 "message": "No crop recommendation data found for this sensor. Please generate recommendations first.",
-                "sensor_id": sensor_id,
-                "user_id": user_id
+                "sensor_id": sensor_id
             }
         
         recommendation_data = latest_recommendation.get("data", {})
@@ -439,8 +431,7 @@ async def chat_with_ai(sensor_id: str, user_id: str, message: dict):
                 "response": None,
                 "error": "no_context",
                 "message": "No environmental context data found. Please generate location analysis first.",
-                "sensor_id": sensor_id,
-                "user_id": user_id
+                "sensor_id": sensor_id
             }
         
         if not recommendations:
@@ -448,8 +439,7 @@ async def chat_with_ai(sensor_id: str, user_id: str, message: dict):
                 "response": None,
                 "error": "no_recommendations",
                 "message": "No crop recommendations found. Please generate recommendations first.",
-                "sensor_id": sensor_id,
-                "user_id": user_id
+                "sensor_id": sensor_id
             }
         
         chat_prompt = CHAT_PROMPT.format(
@@ -500,8 +490,7 @@ async def chat_with_ai(sensor_id: str, user_id: str, message: dict):
         return {
             "response": response_text,
             "error": None,
-            "sensor_id": sensor_id,
-            "user_id": user_id
+            "sensor_id": sensor_id
         }
         
     except HTTPException:
@@ -509,3 +498,120 @@ async def chat_with_ai(sensor_id: str, user_id: str, message: dict):
     except Exception as e:
         logger.error(f"Chat error for sensor {sensor_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
+
+
+@router.post("/hardware/{sensor_id}/readings", response_model=AutoRecommendationResponse)
+async def auto_generate_recommendations(sensor_id: str, sensor_data: HardwareSensorData):
+    
+    try:
+        db = mongodb.get_database()
+        sensors_collection = db["sensor_locations"]
+        
+        try:
+            sensor_location = await sensors_collection.find_one({"_id": ObjectId(sensor_id)})
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid sensor_id format: {str(e)}")
+        
+        if not sensor_location:
+            raise HTTPException(status_code=404, detail=f"Sensor {sensor_id} not found")
+        
+        location_string = sensor_location.get("location", "Unknown")
+        location_info = {
+            "location_name": sensor_location.get("name", "Unknown"),
+            "location_string": location_string
+        }
+        
+        logger.info(f"Generating context analysis for hardware sensor {sensor_id}")
+        
+        context_input = {
+            "location": location_info,
+            "sensor_data": {
+                "soil_moisture_pct": sensor_data.soil_moisture_pct,
+                "temperature_c": sensor_data.temperature_c,
+                "humidity_pct": sensor_data.humidity_pct,
+                "light_lux": sensor_data.light_lux
+            },
+            "start_month": START_MONTH
+        }
+        
+        context_prompt = CONTEXT_ANALYSIS_PROMPT.format(
+            input_payload=json.dumps(context_input, indent=2),
+            location=location_string
+        )
+        
+        context_response = call_gemini(context_prompt)
+        context_data = context_response  # Already a dict from call_gemini
+        
+        # Step 3: Generate crop recommendations (8 crops)
+        logger.info(f"Generating 8 crop recommendations for hardware sensor {sensor_id}")
+        
+        recommendation_input = {
+            "sensor_data": {
+                "soil_moisture_pct": sensor_data.soil_moisture_pct,
+                "temperature_c": sensor_data.temperature_c,
+                "humidity_pct": sensor_data.humidity_pct,
+                "light_lux": sensor_data.light_lux
+            },
+            "location": location_info,
+            "sensor_id": sensor_id
+        }
+        
+        recommendation_prompt = HARDWARE_RECOMMENDATION_PROMPT.format(
+            context_data=json.dumps(context_data, indent=2),
+            input_payload=json.dumps(recommendation_input, indent=2),
+            start_month=START_MONTH
+        )
+        
+        recommendations_response = call_gemini(recommendation_prompt)
+        recommendations_json = recommendations_response  # Already a dict from call_gemini
+        recommendations = recommendations_json.get("recommendations", [])
+        
+        if len(recommendations) != 8:
+            logger.warning(f"Expected 8 recommendations but got {len(recommendations)}")
+        
+        for i, rec in enumerate(recommendations):
+            rec["is_top_3"] = (i < 3)
+            
+            searchable_name = rec.get("searchable_name", rec.get("crop"))
+            if searchable_name:
+                try:
+                    thumbnail_url = await fetch_wikipedia_thumbnail(searchable_name)
+                    rec["image_url"] = thumbnail_url
+                except Exception as img_error:
+                    logger.error(f"Failed to fetch image for {searchable_name}: {str(img_error)}")
+                    rec["image_url"] = None
+        
+        logger.info(f"Storing 8 recommendations for hardware sensor {sensor_id}")
+
+        storage_data = {
+            "sensor_id": sensor_id,
+            "input": {
+                "sensor_data": sensor_data.dict(),
+                "location": location_info
+            },
+            "context": context_data,
+            "output": {
+                "recommendations": recommendations
+            }
+        }
+        
+        await save_to_mongodb("crop_recommendations", storage_data)
+        
+        top_3_crops = [rec["crop"] for rec in recommendations[:3]]
+        
+        return AutoRecommendationResponse(
+            success=True,
+            sensor_id=sensor_id,
+            top_3_crops=top_3_crops,
+            total_crops_generated=len(recommendations),
+            message=f"Successfully generated {len(recommendations)} recommendations. Top 3 crops returned."
+        )
+        
+    except HTTPException:
+        raise
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON parsing error for hardware sensor {sensor_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to parse AI response: {str(e)}")
+    except Exception as e:
+        logger.error(f"Auto-recommendation error for hardware sensor {sensor_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to generate recommendations: {str(e)}")

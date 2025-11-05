@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import mongodb
-from app.routers import sensors, recommendations, users
+from app.routers import sensors, recommendations
 
 app = FastAPI(
     title="PiliSeed API",
@@ -27,7 +27,6 @@ async def shutdown_event():
 
 app.include_router(sensors.router)
 app.include_router(recommendations.router)
-app.include_router(users.router)
 
 @app.get("/")
 async def root():
