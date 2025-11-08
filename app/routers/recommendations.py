@@ -539,6 +539,94 @@ async def chat_with_ai(sensor_id: str, message: dict):
         logger.error(f"Chat error for sensor {sensor_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
 
+@router.post("/session/{session_id}/chat")
+async def chat_with_session(session_id: str, message: dict):
+    db = mongodb.get_database()
+    recommendations_collection = db["crop_recommendations"]
+    
+    try:
+        user_message = message.get("message", "")
+        user_uid = message.get("user_uid")
+        
+        if not user_message:
+            raise HTTPException(status_code=400, detail="Message is required")
+        
+        session_recommendation = await recommendations_collection.find_one(
+            {"_id": ObjectId(session_id)}
+        )
+        
+        if not session_recommendation:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        recommendation_data = session_recommendation.get("data", {})
+        input_data = recommendation_data.get("input", {})
+        context_data = recommendation_data.get("context_data", {})
+        output_data = recommendation_data.get("output", {})
+        recommendations = output_data.get("recommendations", [])
+        
+        if not context_data or not recommendations:
+            return {
+                "response": None,
+                "error": "no_data",
+                "message": "This session has incomplete data. Please use a session with full recommendations."
+            }
+        
+        chat_prompt = CHAT_PROMPT.format(
+            user_message=user_message,
+            sensor_id=input_data.get('sensor_id', 'Historical Session'),
+            location=input_data.get('location', 'Unknown'),
+            crop_category=input_data.get('crop_category', 'N/A'),
+            budget=f"{input_data.get('budget_php', 0):,.2f}",
+            land_size=input_data.get('land_size_ha', 0),
+            manpower=input_data.get('manpower', 0),
+            waiting_tolerance=input_data.get('waiting_tolerance_days', 0),
+            context_data=json.dumps(context_data, indent=2),
+            recommendations=json.dumps(recommendations, indent=2)
+        )
+        
+        logger.info(f"Calling Gemini API for chat with session {session_id}")
+        
+        import requests
+        from app.core.config import GEMINI_API_KEY, GEMINI_MODEL
+        
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{
+                "parts": [{
+                    "text": chat_prompt
+                }]
+            }],
+            "generationConfig": {
+                "temperature": 0.7,
+                "topK": 40,
+                "topP": 0.95,
+                "maxOutputTokens": 2048,
+            }
+        }
+        
+        api_url = f"{url}?key={GEMINI_API_KEY}"
+        response = requests.post(api_url, headers=headers, json=payload, timeout=60)
+        response.raise_for_status()
+        
+        data = response.json()
+        if "candidates" not in data or not data["candidates"]:
+            raise ValueError("No response from AI")
+        
+        response_text = data["candidates"][0]["content"]["parts"][0]["text"]
+        logger.info(f"Gemini API response received successfully")
+        
+        return {
+            "response": response_text,
+            "error": None,
+            "session_id": session_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Chat error for session {session_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
 
 @router.post("/hardware/{sensor_id}/readings", response_model=AutoRecommendationResponse)
 async def auto_generate_recommendations(sensor_id: str, sensor_data: HardwareSensorData):
