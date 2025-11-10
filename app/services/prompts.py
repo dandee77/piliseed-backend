@@ -212,8 +212,13 @@ CONTEXTUAL DATA:
 SENSOR READINGS:
 {input_payload}
 
-Generate detailed crop recommendations as a JSON object with key "recommendations" containing an array of randomly 8-12 crop objects. 
+ALREADY GENERATED CROPS (DO NOT REPEAT THESE):
+{already_generated}
+
+Generate detailed crop recommendations as a JSON object with key "recommendations" containing an array of exactly 8 crop objects. 
 Please ensure diversity in crop types (Vegetables, Fruits, Cereals, Legumes, Cash crops, Fodder, Herbs, Ornamentals).
+
+CRITICAL: Your 8 crops MUST be completely different from the crops listed above in "ALREADY GENERATED CROPS"!
 
 Each recommendation must include ALL these fields:
 
@@ -307,7 +312,7 @@ Each recommendation must include ALL these fields:
 }}
 
 CRITICAL REQUIREMENTS:
-1. Return EXACTLY 8 recommendations, ranked by overall_score descending
+1. Return EXACTLY 8 selected recommendations, ranked by overall_score descending
 2. Base recommendations SOLELY on sensor readings (soil moisture, temperature, humidity, light)
 3. Use the contextual weather and market data to influence season_score and market_score
 4. Confidence_pct should reflect sensor data quality (basic 4 sensors = moderate confidence 60-75%)

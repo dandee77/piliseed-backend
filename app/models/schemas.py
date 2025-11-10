@@ -142,13 +142,17 @@ class CropRecommendation(BaseModel):
 class RecommendationResponse(BaseModel):
     id: str
     sensor_id: str
+    sensor_name: Optional[str] = "Unknown"
+    location: Optional[str] = "Unknown Location"
     recommendations: List[CropRecommendation]
+    sensor_data: Optional[SensorData] = None
 
 class HardwareSensorData(BaseModel):
     soil_moisture_pct: float
     temperature_c: float
     humidity_pct: float
     light_lux: float
+    already_generated: Optional[List[str]] = []
 
 class AutoRecommendationResponse(BaseModel):
     success: bool

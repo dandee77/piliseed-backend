@@ -1,6 +1,8 @@
 import json
 import logging
 import uuid
+import asyncio
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException
 from bson import ObjectId
 from app.models.schemas import (
@@ -309,6 +311,16 @@ async def toggle_crop_planted(recommendation_id: str, crop_index: int, planted: 
 async def get_recommendation_history(sensor_id: str):
     db = mongodb.get_database()
     recommendations_collection = db["crop_recommendations"]
+    sensors_collection = db["sensor_locations"]
+    
+    # Get sensor info for fallback
+    sensor_info = None
+    try:
+        sensor_info = await sensors_collection.find_one({"_id": ObjectId(sensor_id)})
+    except:
+        pass
+    
+    fallback_sensor_name = sensor_info.get("name", "Unknown") if sensor_info else "Unknown"
     
     try:
         history_cursor = recommendations_collection.find(
@@ -317,18 +329,31 @@ async def get_recommendation_history(sensor_id: str):
         
         history = []
         async for doc in history_cursor:
-            output = doc.get("data", {}).get("output", {})
+            data = doc.get("data", {})
+            output = data.get("output", {})
             recommendations = output.get("recommendations", [])
+            input_data = data.get("input", {})
             
             planted_count = sum(1 for rec in recommendations if rec.get("planted", False))
+            
+            # Extract location - handle both string and object formats
+            location = input_data.get("location", "Unknown Location")
+            if isinstance(location, dict):
+                # Use location_string (e.g., "Quezon City") not location_name (e.g., "Sensor 1")
+                location = location.get("location_string") or location.get("location_name") or "Unknown Location"
+            
+            # Get sensor_name from data, fallback to sensor_info
+            sensor_name = data.get("sensor_name", fallback_sensor_name)
             
             history.append({
                 "id": str(doc["_id"]),
                 "timestamp": doc["timestamp"],
-                "sensor_name": doc.get("data", {}).get("sensor_name", "Unknown"),
+                "sensor_id": data.get("sensor_id", sensor_id),
+                "sensor_name": sensor_name,
+                "location": location,
                 "total_crops": len(recommendations),
                 "planted_count": planted_count,
-                "farmer_input": doc.get("data", {}).get("input", {}).get("farmer", {})
+                "farmer_input": input_data.get("farmer", {})
             })
         
         return {"history": history}
@@ -389,18 +414,39 @@ async def get_recommendation_session(recommendation_id: str):
     if not recommendation_doc or "data" not in recommendation_doc:
         raise HTTPException(status_code=404, detail="Recommendation session not found")
     
-    output = recommendation_doc["data"].get("output", {})
+    data = recommendation_doc["data"]
+    output = data.get("output", {})
     recommendations = output.get("recommendations", [])
     
     if not recommendations:
         raise HTTPException(status_code=404, detail="No recommendations in this session")
     
-    sensor_id = recommendation_doc["data"].get("sensor_id", "")
+    sensor_id = data.get("sensor_id", "")
+    sensor_name = data.get("sensor_name", "Unknown")
+    input_data = data.get("input", {})
+    location = input_data.get("location", "Unknown Location")
+    
+    # Extract sensor_data from input (for Load More functionality)
+    sensor_data_dict = input_data.get("sensor_data")
+    sensor_data = None
+    if sensor_data_dict:
+        try:
+            sensor_data = SensorData(**sensor_data_dict)
+        except Exception as e:
+            logger.warning(f"Could not parse sensor_data: {e}")
+    
+    # Extract location - handle both string and object formats
+    if isinstance(location, dict):
+        # Use location_string (e.g., "Quezon City") not location_name (e.g., "Sensor 1")
+        location = location.get("location_string") or location.get("location_name") or "Unknown Location"
     
     return RecommendationResponse(
         id=str(recommendation_doc["_id"]),
         sensor_id=sensor_id,
-        recommendations=recommendations
+        sensor_name=sensor_name,
+        location=location,
+        recommendations=recommendations,
+        sensor_data=sensor_data
     )
 
 @router.get("/session/{recommendation_id}/context")
@@ -564,23 +610,27 @@ async def chat_with_session(session_id: str, message: dict):
         output_data = recommendation_data.get("output", {})
         recommendations = output_data.get("recommendations", [])
         
-        if not context_data or not recommendations:
+        # Check if we have at least recommendations to chat about
+        if not recommendations:
             return {
                 "response": None,
                 "error": "no_data",
-                "message": "This session has incomplete data. Please use a session with full recommendations."
+                "message": "This session has no recommendations. Please use a session with crop recommendations."
             }
+        
+        # Use context_data if available, otherwise use minimal context
+        context_str = json.dumps(context_data, indent=2) if context_data else "No detailed context available"
         
         chat_prompt = CHAT_PROMPT.format(
             user_message=user_message,
-            sensor_id=input_data.get('sensor_id', 'Historical Session'),
+            sensor_id=input_data.get('sensor_id', recommendation_data.get('sensor_id', 'Historical Session')),
             location=input_data.get('location', 'Unknown'),
             crop_category=input_data.get('crop_category', 'N/A'),
             budget=f"{input_data.get('budget_php', 0):,.2f}",
             land_size=input_data.get('land_size_ha', 0),
             manpower=input_data.get('manpower', 0),
             waiting_tolerance=input_data.get('waiting_tolerance_days', 0),
-            context_data=json.dumps(context_data, indent=2),
+            context_data=context_str,
             recommendations=json.dumps(recommendations, indent=2)
         )
         
@@ -634,6 +684,7 @@ async def auto_generate_recommendations(sensor_id: str, sensor_data: HardwareSen
     try:
         db = mongodb.get_database()
         sensors_collection = db["sensor_locations"]
+        recommendations_collection = db["crop_recommendations"]
         
         try:
             sensor_location = await sensors_collection.find_one({"_id": ObjectId(sensor_id)})
@@ -649,55 +700,118 @@ async def auto_generate_recommendations(sensor_id: str, sensor_data: HardwareSen
             "location_string": location_string
         }
         
-        logger.info(f"Generating context analysis for hardware sensor {sensor_id}")
+        # Check if this is a "Load More" request (has already_generated crops)
+        is_load_more = sensor_data.already_generated and len(sensor_data.already_generated) > 0
         
-        context_input = {
-            "location": location_info,
-            "sensor_data": {
-                "soil_moisture_pct": sensor_data.soil_moisture_pct,
-                "temperature_c": sensor_data.temperature_c,
-                "humidity_pct": sensor_data.humidity_pct,
-                "light_lux": sensor_data.light_lux
-            },
-            "start_month": START_MONTH
-        }
+        if is_load_more:
+            # LOAD MORE: Get existing session data to reuse context
+            logger.info(f"Load More request for sensor {sensor_id} - reusing existing session data")
+            
+            existing_session = await recommendations_collection.find_one(
+                {"data.sensor_id": sensor_id},
+                sort=[("timestamp", -1)]
+            )
+            
+            if not existing_session or "data" not in existing_session:
+                raise HTTPException(status_code=404, detail="No existing session found for Load More")
+            
+            # Reuse existing context and sensor data from the session
+            session_data = existing_session["data"]
+            context_data = session_data.get("context")
+            stored_sensor_data = session_data.get("input", {}).get("sensor_data", {})
+            
+            logger.info(f"Reusing context and sensor data from existing session")
+            
+            # Format the already_generated list
+            crops_list = "\n".join([f"- {crop}" for crop in sensor_data.already_generated])
+            logger.info(f"Excluding {len(sensor_data.already_generated)} already generated crops")
+            
+            recommendation_input = {
+                "sensor_data": stored_sensor_data,
+                "location": location_info,
+                "sensor_id": sensor_id
+            }
+            
+        else:
+            # INITIAL REQUEST: Generate context first
+            logger.info(f"Initial request for sensor {sensor_id} - generating context")
+            
+            context_collection = db["location_analysis"]
+            
+            # Try to reuse existing context if available
+            existing_context = await context_collection.find_one(
+                {"data.sensor_id": sensor_id},
+                sort=[("timestamp", -1)]
+            )
+            
+            if existing_context and "data" in existing_context:
+                context_data = existing_context["data"].get("output")
+                logger.info(f"Reusing existing context analysis")
+            else:
+                logger.info(f"Generating new context analysis")
+                
+                context_input = {
+                    "location": location_info,
+                    "sensor_data": {
+                        "soil_moisture_pct": sensor_data.soil_moisture_pct,
+                        "temperature_c": sensor_data.temperature_c,
+                        "humidity_pct": sensor_data.humidity_pct,
+                        "light_lux": sensor_data.light_lux
+                    },
+                    "start_month": START_MONTH
+                }
+                
+                context_prompt = CONTEXT_ANALYSIS_PROMPT.format(
+                    input_payload=json.dumps(context_input, indent=2),
+                    location=location_string
+                )
+                
+                context_response = call_gemini(context_prompt)
+                context_data = context_response
+                
+                # Store the context
+                await save_to_mongodb("location_analysis", {
+                    "sensor_id": sensor_id,
+                    "sensor_name": sensor_location.get("name", "Unknown"),
+                    "input": context_input,
+                    "output": context_data
+                })
+                
+                # Wait before next API call
+                logger.info("Waiting 3 seconds before generating recommendations...")
+                await asyncio.sleep(3)
+            
+            crops_list = "None yet (this is the first batch)"
+            
+            recommendation_input = {
+                "sensor_data": {
+                    "soil_moisture_pct": sensor_data.soil_moisture_pct,
+                    "temperature_c": sensor_data.temperature_c,
+                    "humidity_pct": sensor_data.humidity_pct,
+                    "light_lux": sensor_data.light_lux
+                },
+                "location": location_info,
+                "sensor_id": sensor_id
+            }
         
-        context_prompt = CONTEXT_ANALYSIS_PROMPT.format(
-            input_payload=json.dumps(context_input, indent=2),
-            location=location_string
-        )
-        
-        context_response = call_gemini(context_prompt)
-        context_data = context_response  # Already a dict from call_gemini
-        
-        # Step 3: Generate crop recommendations (8 crops)
-        logger.info(f"Generating 8 crop recommendations for hardware sensor {sensor_id}")
-        
-        recommendation_input = {
-            "sensor_data": {
-                "soil_moisture_pct": sensor_data.soil_moisture_pct,
-                "temperature_c": sensor_data.temperature_c,
-                "humidity_pct": sensor_data.humidity_pct,
-                "light_lux": sensor_data.light_lux
-            },
-            "location": location_info,
-            "sensor_id": sensor_id
-        }
+        # Generate recommendations (both initial and load more use same prompt)
+        logger.info(f"Generating 8 crop recommendations")
         
         recommendation_prompt = HARDWARE_RECOMMENDATION_PROMPT.format(
             context_data=json.dumps(context_data, indent=2),
             input_payload=json.dumps(recommendation_input, indent=2),
-            start_month=START_MONTH
+            start_month=START_MONTH,
+            already_generated=crops_list
         )
         
         recommendations_response = call_gemini(recommendation_prompt)
         recommendations_json = recommendations_response  # Already a dict from call_gemini
-        recommendations = recommendations_json.get("recommendations", [])
+        new_recommendations = recommendations_json.get("recommendations", [])
         
-        if len(recommendations) != 8:
-            logger.warning(f"Expected 8 recommendations but got {len(recommendations)}")
+        if len(new_recommendations) != 8:
+            logger.warning(f"Expected 8 recommendations but got {len(new_recommendations)}")
         
-        for i, rec in enumerate(recommendations):
+        for i, rec in enumerate(new_recommendations):
             rec["is_top_3"] = (i < 3)
             
             searchable_name = rec.get("searchable_name", rec.get("crop"))
@@ -709,30 +823,51 @@ async def auto_generate_recommendations(sensor_id: str, sensor_data: HardwareSen
                     logger.error(f"Failed to fetch image for {searchable_name}: {str(img_error)}")
                     rec["image_url"] = None
         
-        logger.info(f"Storing 8 recommendations for hardware sensor {sensor_id}")
-
-        storage_data = {
-            "sensor_id": sensor_id,
-            "input": {
-                "sensor_data": sensor_data.dict(),
-                "location": location_info
-            },
-            "context": context_data,
-            "output": {
-                "recommendations": recommendations
+        # Store or update recommendations
+        if is_load_more:
+            # LOAD MORE: Append new crops to existing session
+            logger.info(f"Appending {len(new_recommendations)} new crops to existing session")
+            
+            existing_recommendations = existing_session["data"]["output"].get("recommendations", [])
+            all_recommendations = existing_recommendations + new_recommendations
+            
+            # Update the existing session document
+            await recommendations_collection.update_one(
+                {"_id": existing_session["_id"]},
+                {"$set": {
+                    "data.output.recommendations": all_recommendations,
+                    "timestamp": datetime.now(timezone(timedelta(hours=8)))
+                }}
+            )
+            
+            logger.info(f"Session updated: {len(existing_recommendations)} + {len(new_recommendations)} = {len(all_recommendations)} total crops")
+            
+        else:
+            # INITIAL: Create new session
+            logger.info(f"Creating new session with {len(new_recommendations)} crops")
+            
+            storage_data = {
+                "sensor_id": sensor_id,
+                "input": {
+                    "sensor_data": sensor_data.dict(exclude={'already_generated'}),
+                    "location": location_info
+                },
+                "context": context_data,
+                "output": {
+                    "recommendations": new_recommendations
+                }
             }
-        }
+            
+            await save_to_mongodb("crop_recommendations", storage_data)
         
-        await save_to_mongodb("crop_recommendations", storage_data)
-        
-        top_3_crops = [rec["crop"] for rec in recommendations[:3]]
+        top_3_crops = [rec["crop"] for rec in new_recommendations[:3]]
         
         return AutoRecommendationResponse(
             success=True,
             sensor_id=sensor_id,
             top_3_crops=top_3_crops,
-            total_crops_generated=len(recommendations),
-            message=f"Successfully generated {len(recommendations)} recommendations. Top 3 crops returned."
+            total_crops_generated=len(new_recommendations),
+            message=f"Successfully generated {len(new_recommendations)} recommendations. Top 3 crops returned."
         )
         
     except HTTPException:
@@ -855,10 +990,15 @@ async def get_filtered_sessions(session_id: str, user_uid: str = None):
     filtered_collection = db["filtered_recommendations"]
     
     try:
+        # If no user_uid provided, return empty list (don't show everyone's filters)
+        if not user_uid:
+            return {"session_id": session_id, "filtered_sessions": []}
+        
         filtered_sessions = []
-        query = {"data.session_id": session_id}
-        if user_uid:
-            query["data.user_uid"] = user_uid
+        query = {
+            "data.session_id": session_id,
+            "data.user_uid": user_uid
+        }
         
         cursor = filtered_collection.find(query).sort("timestamp", -1)
         

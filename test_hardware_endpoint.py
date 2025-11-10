@@ -5,7 +5,7 @@ import requests
 import json
 
 # Test data
-SENSOR_ID = "6906f1bf5b521c6a2c1319b0"
+SENSOR_ID = "690775fbd4b2e905b8da38cb"
 BASE_URL = "http://localhost:8000"
 
 # Sample sensor data from hardware
@@ -26,7 +26,7 @@ def test_hardware_endpoint():
     print("\nSending request...\n")
     
     try:
-        response = requests.post(url, json=sensor_data, timeout=120)
+        response = requests.post(url, json=sensor_data, timeout=50000)
         
         print(f"Status Code: {response.status_code}")
         print(f"Response: {json.dumps(response.json(), indent=2)}")

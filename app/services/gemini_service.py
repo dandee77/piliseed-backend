@@ -50,6 +50,16 @@ def call_gemini(prompt: str) -> Dict[str, Any]:
             
             return json.loads(text_content)
             
+        except requests.exceptions.HTTPError as e:
+            last_error = e
+            # Handle rate limiting with longer wait
+            if e.response.status_code == 429 and attempt < MAX_RETRIES - 1:
+                wait_time = 5 * (attempt + 1)  # 5s, 10s, 15s for rate limits
+                print(f"Rate limit hit, waiting {wait_time}s before retry {attempt + 2}/{MAX_RETRIES}...")
+                time.sleep(wait_time)
+            elif attempt < MAX_RETRIES - 1:
+                wait_time = RETRY_DELAY * (attempt + 1)
+                time.sleep(wait_time)
         except json.JSONDecodeError as e:
             last_error = e
             if attempt < MAX_RETRIES - 1:
